@@ -1,0 +1,44 @@
+GRANT ALL PRIVILEGES ON *.* to '<user>'@'localhost' identified by '<password>';
+
+CREATE TABLE `users` (
+	`id` BIGINT(20) NOT NULL PRIMARY KEY,
+	`username` VARCHAR(32) NOT NULL,
+	`discriminator` INT(4) NOT NULL,
+	`avatar_hash` VARCHAR(34),
+	`refreshed` INT(10) NOT NULL
+);
+
+CREATE TABLE `oauth2` (
+	`user_id` BIGINT(20) NOT NULL,
+	`scope` VARCHAR(100) NOT NULL,
+	`token_type` VARCHAR(10) NOT NULL,
+	`access_token` VARCHAR(32) NOT NULL,
+	`refresh_token` VARCHAR(32) NOT NULL,
+	`expires_in` INT(10) NOT NULL,
+	`refreshed` INT(10) NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE
+);
+
+CREATE TABLE `token_sessions` (
+    `id` BIGINT(20) NOT NULL PRIMARY KEY,
+    `user_id` BIGINT(20) NOT NULL,
+    `secret` VARCHAR(44) NOT NULL,
+    `last_used` INT(10) NOT NULL,
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE,
+    INDEX (`user_id`)
+);
+
+CREATE TABLE `token_states` (
+    `id` BIGINT(20) NOT NULL PRIMARY KEY,
+    `user_id` BIGINT(20) NOT NULL,
+    `snowflake` BIGINT(20) NOT NULL,
+    `secret` VARCHAR(44) NOT NULL,
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE,
+    INDEX (`user_id`)
+);
