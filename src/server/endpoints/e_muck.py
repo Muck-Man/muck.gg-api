@@ -7,7 +7,7 @@ from server.rest.endpoint import Endpoint
 from server.rest.invalidusage import InvalidUsage
 from server.rest.response import Response
 
-from server.utils import IdTypes
+from server.utils import IdTypes, PerspectiveAttributes
 
 class RestEndpoint(Endpoint):
 	def __init__(self, server):
@@ -17,18 +17,7 @@ class RestEndpoint(Endpoint):
 
 		self.perspective = self.server.config.get('googleapi', {}).get('perspective', None)
 
-		self.attributes = {
-			'ATTACK_ON_AUTHOR': {},
-			'ATTACK_ON_COMMENTER': {},
-			'INCOHERENT': {},
-			'INFLAMMATORY': {},
-			'LIKELY_TO_REJECT': {},
-			'OBSCENE': {},
-			'SEVERE_TOXICITY': {},
-			'SPAM': {},
-			'TOXICITY': {},
-			'UNSUBSTANTIAL': {}
-		}
+		self.attributes = {k.name: {} for k in PerspectiveAttributes}
 
 		self.idts = {
 			'GUILDS': 'guild_id',
@@ -104,14 +93,18 @@ class RestEndpoint(Endpoint):
 		if not self.perspective:
 			raise InvalidUsage(500, 'Server missing perspective API key')
 		
-		data = self.validate(await request.json(), required=['channel_id', 'user_id', 'content', 'is_edit'])
+		data = self.validate(await request.json(), required=['message_id', 'channel_id', 'user_id', 'content'])
 		data['guild_id'] = data.get('guild_id', None)
+		data['edited_timestamp'] = data.get('edited_timestamp', None) or 0
 
 		mhash = hashlib.sha256(data['content'].encode()).hexdigest()
 
 		connection = await self.server.database.acquire()
 		try:
 			async with connection.cursor() as cur:
+				if await cur.execute('SELECT * FROM `muck_messages` WHERE `message_id` = %s AND `edited_timestamp` = %s', (data['message_id'], data['edited_timestamp'])):
+					raise InvalidUsage(400, 'Message already inside database.')
+
 				if await cur.execute('SELECT * FROM `muck_cache` WHERE `hash` = %s', (mhash,)):
 					scores = await cur.fetchone()
 				else:
@@ -137,15 +130,15 @@ class RestEndpoint(Endpoint):
 					)
 
 				await cur.execute(
-					'INSERT INTO `muck_messages` (`guild_id`, `channel_id`, `user_id`, `timestamp`, `hash`, `is_edit`) VALUES (%s, %s, %s, %s, %s, %s)',
-					(data['guild_id'], data['channel_id'], data['user_id'], time.time(), scores['hash'], data['is_edit'])
+					'INSERT INTO `muck_messages` (`message_id`, `guild_id`, `channel_id`, `user_id`, `hash`, `edited_timestamp`, `inserted`) VALUES (%s, %s, %s, %s, %s, %s, %s)',
+					(data['message_id'], data['guild_id'], data['channel_id'], data['user_id'], scores['hash'], data['edited_timestamp'], time.time())
 				)
 
-				await self.average(cur, {
-					'GUILDS': data['guild_id'],
-					'CHANNELS': data['channel_id'],
-					'USERS': data['user_id']
-				}, scores)
+				#await self.average(cur, {
+				#	'GUILDS': data['guild_id'],
+				#	'CHANNELS': data['channel_id'],
+				#	'USERS': data['user_id']
+				#}, scores)
 		finally:
 			self.server.database.release(connection)
 		

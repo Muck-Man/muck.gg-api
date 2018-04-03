@@ -38,3 +38,15 @@ class IdTypes(Enumerable):
 	GUILDS = 0
 	CHANNELS = 1
 	USERS = 2
+
+class PerspectiveAttributes(Enumerable):
+	ATTACK_ON_AUTHOR    = 'attack_on_author'
+	ATTACK_ON_COMMENTER = 'attack_on_commenter'
+	INCOHERENT          = 'incoherent'
+	INFLAMMATORY        = 'inflammatory'
+	LIKELY_TO_REJECT    = 'likely_to_reject'
+	OBSCENE             = 'obscene'
+	SEVERE_TOXICITY     = 'severe_toxicity'
+	SPAM                = 'spam'
+	TOXICITY            = 'toxicity'
+	UNSUBSTANTIAL       = 'unsubstantial'

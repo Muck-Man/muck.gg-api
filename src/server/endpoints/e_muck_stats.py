@@ -1,8 +1,10 @@
+import datetime
+
 from server.rest.endpoint import Endpoint
 from server.rest.invalidusage import InvalidUsage
 from server.rest.response import Response
 
-from server.utils import IdTypes
+from server.utils import IdTypes, PerspectiveAttributes
 
 class RestEndpoint(Endpoint):
 	def __init__(self, server):
@@ -10,34 +12,57 @@ class RestEndpoint(Endpoint):
 		self.server = server
 		self.path = '/muck/stats'
 
-		self.attributes = [
-			'attack_on_author',
-			'attack_on_commenter',
-			'incoherent',
-			'inflammatory',
-			'likely_to_reject',
-			'obscene',
-			'severe_toxicity',
-			'spam',
-			'toxicity',
-			'unsubstantial'
-		]
+		self.id_types = {
+			'GUILDS': 'guild_id',
+			'CHANNELS': 'channel_id',
+			'USERS': 'user_id'
+		}
 	
 	async def get(self, request):
-		scores = {
-			'guilds': {
-				'unique': None,
-				'duplicates': None
-			},
-			'channels': {
-				'unique': None,
-				'duplicates': None
-			},
-			'users': {
-				'unique': None,
-				'duplicates': None
-			}
+		data = {
+			'timestamp': datetime.date.today() - datetime.timedelta(1),
+			'scores': [
+				{'type': 'guilds', 'data': {}},
+				{'type': 'channels', 'data': {}}
+			]
 		}
+		data['timestamp'] = data['timestamp'].strftime('%s')
+
+		connection = await self.server.database.acquire()
+		try:
+			async with connection.cursor() as cur:
+				for score in data['scores']:
+					id_type = self.id_types.get(score['type'].upper(), None)
+					if not id_type:
+						continue
+					
+					where = ['`inserted` >= %s']
+
+					if id_type == 'guild_id':
+						where.append('`guild_id` is not null')
+					
+					await cur.execute(
+						' '.join([
+							'SELECT',
+							'{}'.format(
+								', '.join(
+									['AVG(`muck_cache`.`{a}`) AS "{a}"'.format(a=attribute.value) for attribute in PerspectiveAttributes] +
+									['COUNT(*) AS "count"']
+								)
+							),
+							'FROM `muck_messages`',
+							'INNER JOIN `muck_cache` ON `muck_messages`.`hash` = `muck_cache`.`hash`',
+							'WHERE',
+							' AND '.join(where),
+						]),
+						(data['timestamp'],)
+					)
+
+					score['data'].update(await cur.fetchone())
+		finally:
+			self.server.database.release(connection)
+
+		'''
 		connection = await self.server.database.acquire()
 		try:
 			async with connection.cursor() as cur:
@@ -66,4 +91,6 @@ class RestEndpoint(Endpoint):
 		finally:
 			self.server.database.release(connection)
 		
-		return Response(200, scores)
+		'''
+		
+		return Response(200, data)

@@ -63,18 +63,24 @@ CREATE TABLE `muck_cache` (
 );
 
 CREATE TABLE `muck_messages` (
+	`message_id` BIGINT(20) NOT NULL,
 	`guild_id` BIGINT(20),
 	`channel_id` BIGINT(20) NOT NULL,
 	`user_id` BIGINT(20) NOT NULL,
-	`timestamp` INT(10) NOT NULL,
 	`hash` VARCHAR(64) NOT NULL,
-	`is_edit` TINYINT(1) NOT NULL,
+	`edited_timestamp` INT(10) NOT NULL,
+	`inserted` INT(10) NOT NULL,
 	FOREIGN KEY (`hash`) REFERENCES `muck_cache` (`hash`)
         ON UPDATE RESTRICT
         ON DELETE CASCADE,
+	PRIMARY KEY(`message_id`, `edited_timestamp`),
+	INDEX(`guild_id`),
+	INDEX(`channel_id`),
+	INDEX(`user_id`),
 	INDEX(`hash`)
 );
 
+-----
 CREATE TABLE `muck_averages` (
 	`id_type` INT(10) NOT NULL,
 	`id` BIGINT(20) NOT NULL,
@@ -102,6 +108,7 @@ CREATE TABLE `muck_averages` (
 	`unique_count` BIGINT(20) NOT NULL,
 	PRIMARY KEY (`id_type`, `id`)
 );
+-----
 
 -------------------------------------------------------------------------------
 

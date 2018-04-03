@@ -1,6 +1,10 @@
+import datetime
+
 from server.rest.endpoint import Endpoint
 from server.rest.invalidusage import InvalidUsage
 from server.rest.response import Response
+
+from server.utils import IdTypes, PerspectiveAttributes
 
 class RestEndpoint(Endpoint):
 	def __init__(self, server):
@@ -10,57 +14,66 @@ class RestEndpoint(Endpoint):
 
 		self.types = {'id': 'snowflake'}
 
-		self.attributes = [
-			'attack_on_author',
-			'attack_on_commenter',
-			'incoherent',
-			'inflammatory',
-			'likely_to_reject',
-			'obscene',
-			'severe_toxicity',
-			'spam',
-			'toxicity',
-			'unsubstantial'
-		]
-
-		self.idtypes = ['guilds', 'channels', 'users']
+		self.id_types = {
+			'GUILDS': 'guild_id',
+			'CHANNELS': 'channel_id',
+			'USERS': 'user_id'
+		}
 	
 	async def get(self, request, idtype, sid):
-		if idtype not in self.idtypes:
-			raise InvalidUsage(404, 'Allowed ID Types: [{}]'.format(', '.join(self.idtypes)))
-
-		scores = {
-			'unique': None,
-			'duplicates': None
+		idtype = IdTypes.get(idtype.upper())
+		if not idtype:
+			raise InvalidUsage(404)
+		
+		idt = self.id_types.get(idtype.name)
+		
+		data = {
+			'timestamp': datetime.date.today() - datetime.timedelta(1),
+			'score': {}
 		}
+		data['timestamp'] = data['timestamp'].strftime('%s')
+
+		where = [
+			'`inserted` >= %s',
+			'`{}` = %s'.format(idt)
+		]
+
+		values = [data['timestamp'], sid]
+
+		if idt == 'user_id':
+			if request.query.get('channel_id', None):
+				where.append('`channel_id` = %s')
+				values.append(request.query['channel_id'])
+			
+			if request.query.get('guild_id', None):
+				where.append('`guild_id` = %s')
+				values.append(request.query['guild_id'])
+		
+		print(where, values)
+
 		connection = await self.server.database.acquire()
 		try:
 			async with connection.cursor() as cur:
 				await cur.execute(
 					' '.join([
 						'SELECT',
-						'COUNT(*) AS "messages",',
-						'{}'.format(', '.join(['AVG(`muck_cache`.`{a}`) AS "{a}"'.format(a=attribute) for attribute in self.attributes])),
+						'{}'.format(
+							'{}'.format(
+								', '.join(
+									['AVG(`muck_cache`.`{a}`) AS "{a}"'.format(a=attribute.value) for attribute in PerspectiveAttributes] +
+									['COUNT(*) AS "count"']
+								)
+							),
+						),
 						'FROM `muck_messages`',
-						'WHERE `{}` = %s'
-						'INNER JOIN `muck_cache` ON `muck_messages`.`hash` = `muck_cache`.`hash`'
+						'INNER JOIN `muck_cache` ON `muck_messages`.`hash` = `muck_cache`.`hash`',
+						'WHERE',
+						' AND '.join(where)
 					]),
-					(sid,)
+					values
 				)
-				scores['duplicates'] = await cur.fetchone()
-
-				await cur.execute(
-					' '.join([
-						'SELECT',
-						'COUNT(*) AS "messages",',
-						'{}'.format(', '.join(['AVG(`uniques`.`{a}`) AS "{a}"'.format(a=attribute) for attribute in self.attributes])),
-						'FROM (SELECT',
-						'{}'.format(', '.join(['`muck_cache`.`{a}` AS "{a}"'.format(a=attribute) for attribute in self.attributes])),
-						'FROM `muck_messages` INNER JOIN `muck_cache` ON `muck_messages`.`hash` = `muck_cache`.`hash` GROUP BY `muck_messages`.`hash`) AS `uniques`'
-					])
-				)
-				scores['unique'] = await cur.fetchone()
+				data['score'].update(await cur.fetchone())
 		finally:
 			self.server.database.release(connection)
 		
-		return Response(200, scores)
+		return Response(200, data)
