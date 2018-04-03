@@ -11,6 +11,11 @@ cfg = {
 			'redirect_uri': 'https://muck.gg/api/bot/discord/oauth2/callback'
 		}
 	},
+	'googleapi': {
+		'perspective': {
+			'token': ''
+		}
+	},
 	'database': {
 		'host': '127.0.0.1',
 		'user': '',

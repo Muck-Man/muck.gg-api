@@ -79,7 +79,7 @@ class RestEndpoint(Endpoint):
 
 					iuser = user.items()
 					await cur.execute(
-						'UPDATE `oauth2` SET ' +
+						'UPDATE `users` SET ' +
 						'{} '.format(', '.join(['`{}` = {}'.format(k, '%s') for k, v in iuser])) +
 						'WHERE `id` = %s',
 						[v for k, v in iuser] + [user['id']]

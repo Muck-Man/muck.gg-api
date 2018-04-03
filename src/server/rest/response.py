@@ -1,3 +1,4 @@
+import decimal
 import json
 
 from aiohttp.web import Response as AioHTTPResponse
@@ -6,11 +7,6 @@ class Response(AioHTTPResponse):
 	def __init__(self, status, body=None, **kwargs):
 		kwargs['status'] = status
 		kwargs['content_type'] = kwargs.get('content_type', 'application/json').lower()
-
-		kwargs['headers'] = kwargs.get('headers', {})
-		kwargs['headers']['Access-Control-Allow-Origin'] = '*'
-		kwargs['headers']['Access-Control-Allow-Methods'] = '*'
-		kwargs['headers']['Access-Control-Allow-Headers'] = 'content-type, authorization'
 
 		if body is not None:
 			if kwargs['content_type'].startswith('application/json') and status != 204:
@@ -29,6 +25,10 @@ class Response(AioHTTPResponse):
 		if isinstance(data, (list, tuple)):
 			for i in range(len(data)):
 				data[i] = self.filter(data[i])
+		
+		if isinstance(data, decimal.Decimal):
+			data = float(data)
+
 		return data
 
 	def encode(self, data):

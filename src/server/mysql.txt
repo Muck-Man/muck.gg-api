@@ -5,7 +5,8 @@ CREATE TABLE `users` (
 	`username` VARCHAR(32) NOT NULL,
 	`discriminator` INT(4) NOT NULL,
 	`avatar_hash` VARCHAR(34),
-	`refreshed` INT(10) NOT NULL
+	`refreshed` INT(10) NOT NULL,
+	`permissions` INT(10) NOT NULL
 );
 
 CREATE TABLE `oauth2` (
@@ -20,6 +21,8 @@ CREATE TABLE `oauth2` (
         ON UPDATE RESTRICT
         ON DELETE CASCADE
 );
+
+-------------------------------------------------------------------------------
 
 CREATE TABLE `token_sessions` (
     `id` BIGINT(20) NOT NULL PRIMARY KEY,
@@ -41,4 +44,71 @@ CREATE TABLE `token_states` (
         ON UPDATE RESTRICT
         ON DELETE CASCADE,
     INDEX (`user_id`)
+);
+
+-------------------------------------------------------------------------------
+
+CREATE TABLE `muck_cache` (
+	`hash` VARCHAR(64) NOT NULL PRIMARY KEY,
+	`attack_on_author` DECIMAL(20, 10) NOT NULL,
+	`attack_on_commenter` DECIMAL(20, 10) NOT NULL,
+	`incoherent` DECIMAL(20, 10) NOT NULL,
+	`inflammatory` DECIMAL(20, 10) NOT NULL,
+	`likely_to_reject` DECIMAL(20, 10) NOT NULL,
+	`obscene` DECIMAL(20, 10) NOT NULL,
+	`severe_toxicity` DECIMAL(20, 10) NOT NULL,
+	`spam` DECIMAL(20, 10) NOT NULL,
+	`toxicity` DECIMAL(20, 10) NOT NULL,
+	`unsubstantial` DECIMAL(20, 10) NOT NULL
+);
+
+CREATE TABLE `muck_messages` (
+	`guild_id` BIGINT(20),
+	`channel_id` BIGINT(20) NOT NULL,
+	`user_id` BIGINT(20) NOT NULL,
+	`timestamp` INT(10) NOT NULL,
+	`hash` VARCHAR(64) NOT NULL,
+	`is_edit` TINYINT(1) NOT NULL,
+	FOREIGN KEY (`hash`) REFERENCES `muck_cache` (`hash`)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE,
+	INDEX(`hash`)
+);
+
+CREATE TABLE `muck_averages` (
+	`id_type` INT(10) NOT NULL,
+	`id` BIGINT(20) NOT NULL,
+	`attack_on_author` DECIMAL(20, 10) NOT NULL,
+	`attack_on_commenter` DECIMAL(20, 10) NOT NULL,
+	`incoherent` DECIMAL(20, 10) NOT NULL,
+	`inflammatory` DECIMAL(20, 10) NOT NULL,
+	`likely_to_reject` DECIMAL(20, 10) NOT NULL,
+	`obscene` DECIMAL(20, 10) NOT NULL,
+	`severe_toxicity` DECIMAL(20, 10) NOT NULL,
+	`spam` DECIMAL(20, 10) NOT NULL,
+	`toxicity` DECIMAL(20, 10) NOT NULL,
+	`unsubstantial` DECIMAL(20, 10) NOT NULL,
+	`count` BIGINT(20) NOT NULL,
+	`unique_attack_on_author` DECIMAL(20, 10) NOT NULL,
+	`unique_attack_on_commenter` DECIMAL(20, 10) NOT NULL,
+	`unique_incoherent` DECIMAL(20, 10) NOT NULL,
+	`unique_inflammatory` DECIMAL(20, 10) NOT NULL,
+	`unique_likely_to_reject` DECIMAL(20, 10) NOT NULL,
+	`unique_obscene` DECIMAL(20, 10) NOT NULL,
+	`unique_severe_toxicity` DECIMAL(20, 10) NOT NULL,
+	`unique_spam` DECIMAL(20, 10) NOT NULL,
+	`unique_toxicity` DECIMAL(20, 10) NOT NULL,
+	`unique_unsubstantial` DECIMAL(20, 10) NOT NULL,
+	`unique_count` BIGINT(20) NOT NULL,
+	PRIMARY KEY (`id_type`, `id`)
+);
+
+-------------------------------------------------------------------------------
+
+CREATE TABLE `bots` (
+    `id` BIGINT(20) NOT NULL PRIMARY KEY,
+    `name` VARCHAR(32) NOT NULL,
+    `permissions` INT(10) NOT NULL,
+    `snowflake` BIGINT(20) NOT NULL,
+    `secret` VARCHAR(44) NOT NULL
 );

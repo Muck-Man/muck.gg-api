@@ -33,3 +33,8 @@ class Permissions(Enumerable):
 	@classmethod
 	def check_any(cls, permission, checks):
 		return any(cls.check(permission, check) for check in checks)
+
+class IdTypes(Enumerable):
+	GUILDS = 0
+	CHANNELS = 1
+	USERS = 2

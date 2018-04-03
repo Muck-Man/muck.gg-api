@@ -75,38 +75,14 @@ class HTTPClient:
 	def discord_get_users_me(self, token):
 		return self.request(Route('get', 'https://discordapp.com/api/v6/users/@me'), headers={'Authorization': token})
 	
-	def nexmo_lookup(self, number, api_key, api_secret, cnam=True):
-		return self.request(Route('get', 'https://api.nexmo.com/ni/standard/json'), params={
-			'api_key': api_key,
-			'api_secret': api_secret,
-			'number': number,
-			'cnam': str(bool(cnam))
-		})
-
-	def twilio_lookup(self, number, token):
-		return self.request(Route('get', 'https://lookups.twilio.com/v1/PhoneNumbers/{number}', number=number), headers={'Authorization': token})
-
-	def whitepages_lookup(self, number, token):
-		return self.request(Route('get', 'https://proapi.whitepages.com/3.0/phone'), params={
-			'phone': number,
-			'api_key': token
-		})
-	
-	def selly_get_offer(self, id, auth):
-		token = 'Basic {}'.format(base64.b64encode('{email}:{key}'.format(**auth).encode()).decode())
-		return self.request(Route('get', 'https://selly.gg/api/v2/orders/{id}', id=id), headers={'Authorization': token})
-	
-	def selly_create_pay(self, auth, data={}):
-		token = 'Basic {}'.format(base64.b64encode('{email}:{key}'.format(**auth).encode()).decode())
+	def googleapi_perspective(self, token, content, attributes, do_not_store):
 		data = {
-			'title': data.get('title'),
-			'gateway': data.get('gateway'),
-			'email': data.get('email'),
-			'value': data.get('value'),
-			'currency': data.get('currency', 'USD'),
-			'confirmations': data.get('confirmations', 2),
-			'return_url': data.get('return_url', 'https://notsophone.com/panel/purchases#complete'),
-			'webhook_url': data.get('webhook_url')
+			'comment': {
+				'text': content
+			},
+			'languages': ['en'],
+			'requestedAttributes': attributes,
+			'doNotStore': do_not_store
 		}
-		data = {k: data[k] for k in ['title', 'gateway', 'email', 'value', 'currency', 'confirmations', 'return_url', 'webhook_url'] if data.get(k) is not None}
-		return self.request(Route('post', 'https://selly.gg/api/v2/pay'), data=data, headers={'Authorization': token})
+
+		return self.request(Route('post', 'https://commentanalyzer.googleapis.com/v1alpha1/comments:analyze'), params={'key': token}, json=data)

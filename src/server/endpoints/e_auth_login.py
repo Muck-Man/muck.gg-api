@@ -30,7 +30,7 @@ class RestEndpoint(Endpoint):
 				
 				session_token = self.server.token.generate(user['id'])
 				await cur.execute(
-					'INSERT INTO `token_sessions` (id, user_id, secret, last_used) VALUES (%s, %s, %s, %s)',
+					'INSERT INTO `token_sessions` (`id`, `user_id`, `secret`, `last_used`) VALUES (%s, %s, %s, %s)',
 					(session_token['snowflake'], user['id'], session_token['secret'], 0)
 				)
 				await cur.execute('DELETE FROM `token_states` WHERE `id` = %s', (token['user_id'],))
