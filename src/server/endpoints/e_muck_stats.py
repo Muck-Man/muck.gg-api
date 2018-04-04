@@ -14,7 +14,7 @@ class RestEndpoint(Endpoint):
 	
 	async def get(self, request):
 		#implement using timestamp
-		scores = {}
+		data = {}
 
 		connection = await self.server.database.acquire()
 		try:
@@ -23,12 +23,20 @@ class RestEndpoint(Endpoint):
 					'SELECT',
 					', '.join([
 						'`count`',
+						'`started`',
 						', '.join(['`{}`'.format(attribute.value) for attribute in PerspectiveAttributes])
 					]),
 					'FROM `muck_averages` WHERE `timestamp` = 0 AND `guild_id` = 0 AND `channel_id` = 0 AND `user_id` = 0'
 				]))
-				scores.update(await cur.fetchone())
+				data['scores'] = await cur.fetchone()
+				if not data['scores']:
+					raise InvalidUsage(404, 'No data found')
+				
+				data['count'] = data['scores'].pop('count')
+				data['started'] = data['scores'].pop('started')
+				for key in data['scores'].keys():
+					data['scores'][key] = round(float(data['scores'][key]) / data['count'], 10)
 		finally:
 			self.server.database.release(connection)
 		
-		return Response(200, scores)
+		return Response(200, data)

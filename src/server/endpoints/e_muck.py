@@ -8,7 +8,7 @@ from server.rest.endpoint import Endpoint
 from server.rest.invalidusage import InvalidUsage
 from server.rest.response import Response
 
-from server.utils import IdTypes, PerspectiveAttributes
+from server.utils import IdTypes, Permissions, PerspectiveAttributes
 
 class RestEndpoint(Endpoint):
 	def __init__(self, server):
@@ -21,6 +21,7 @@ class RestEndpoint(Endpoint):
 		self.attributes = {k.name: {} for k in PerspectiveAttributes}
 	
 	async def average(self, timestamp, guild_id, channel_id, user_id, scores):
+		started = timestamp
 		timestamp = datetime.date.fromtimestamp(timestamp) - datetime.timedelta(1)
 		timestamp = timestamp.strftime('%s')
 
@@ -29,18 +30,22 @@ class RestEndpoint(Endpoint):
 		vscores = list(scores.values())
 
 		values = [
-			[0, 0, 0, 0],
-			[0, guild_id, 0, 0] if guild_id else None,
-			[0, 0, channel_id, 0],
-			[0, 0, 0, user_id],
-			[timestamp, 0, 0, 0],
-			[timestamp, guild_id, 0, 0] if guild_id else None,
-			[timestamp, 0, channel_id, 0],
-			[timestamp, guild_id or 0, channel_id, user_id]
+			[started, 0, 0, 0, 0],
+			[started, 0, guild_id, 0, 0] if guild_id else None,
+			[started, 0, 0, channel_id, 0],
+			[started, 0, 0, 0, user_id],
+			[started, 0, guild_id, 0, user_id] if guild_id else None,
+			[started, 0, 0, channel_id, user_id],
+			[started, timestamp, 0, 0, 0],
+			[started, timestamp, guild_id, 0, 0] if guild_id else None,
+			[started, timestamp, 0, channel_id, 0],
+			[started, timestamp, 0, 0, user_id],
+			[started, timestamp, guild_id, 0, user_id] if guild_id else None,
+			[started, timestamp, 0, channel_id, user_id]
 		]
 		values = [v + [1] + vscores for v in values if v is not None]
 
-		keys = ['timestamp', 'guild_id', 'channel_id', 'user_id', 'count'] + kscores
+		keys = ['started', 'timestamp', 'guild_id', 'channel_id', 'user_id', 'count'] + kscores
 		statement = ' '.join([
 			'INSERT INTO  `muck_averages`',
 			'({})'.format(', '.join(['`{}`'.format(k) for k in keys])),
@@ -50,7 +55,7 @@ class RestEndpoint(Endpoint):
 			]),
 			'ON DUPLICATE KEY UPDATE',
 			', '.join([
-				', '.join(['`{k}` = ROUND(((`{k}` * `count`) + VALUES(`{k}`)) / (`count` + VALUES(`count`)), 7)'.format(k=k) for k in kscores]),
+				', '.join(['`{k}` = ROUND(`{k}` + VALUES(`{k}`), 10)'.format(k=k) for k in kscores]),
 				'`count` = `count` + VALUES(`count`)'
 			])
 		])
@@ -92,7 +97,8 @@ class RestEndpoint(Endpoint):
 
 		data = self.validate(await request.json(), required=['content'])
 		if store:
-			#check if bot is owner or something
+			if not Permissions.check(bot['permissions'], 'OWNER'):
+				raise InvalidUsage(401)
 			data = self.validate(data, required=['message_id', 'channel_id', 'user_id', 'timestamp'])
 			data['guild_id'] = data.get('guild_id', None)
 			if data['guild_id'] == 'null':
@@ -102,8 +108,6 @@ class RestEndpoint(Endpoint):
 		if not data['content']:
 			#if they send in a blank content lol
 			raise InvalidUsage(400)
-
-		print(store, data)
 
 		mhash = hashlib.sha256(data['content'].encode()).hexdigest()
 
