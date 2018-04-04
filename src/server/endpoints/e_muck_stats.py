@@ -4,7 +4,7 @@ from server.rest.endpoint import Endpoint
 from server.rest.invalidusage import InvalidUsage
 from server.rest.response import Response
 
-from server.utils import IdTypes, PerspectiveAttributes
+from server.utils import ContextTypes, PerspectiveAttributes
 
 class RestEndpoint(Endpoint):
 	def __init__(self, server):
@@ -19,15 +19,21 @@ class RestEndpoint(Endpoint):
 		connection = await self.server.database.acquire()
 		try:
 			async with connection.cursor() as cur:
-				await cur.execute(' '.join([
-					'SELECT',
-					', '.join([
-						'`count`',
-						'`started`',
-						', '.join(['`{}`'.format(attribute.value) for attribute in PerspectiveAttributes])
+				await cur.execute(
+					' '.join([
+						'SELECT',
+						', '.join([
+							'`count`',
+							'`started`',
+							', '.join([
+								'`{}`'.format(attribute.value) for attribute in PerspectiveAttributes
+							])
+						]),
+						'FROM `muck_averages` WHERE',
+						'`timestamp` = %s AND `context_type` = %s AND `context_id` = %s AND `user_id` = %s'
 					]),
-					'FROM `muck_averages` WHERE `timestamp` = 0 AND `guild_id` = 0 AND `channel_id` = 0 AND `user_id` = 0'
-				]))
+					[0, ContextTypes.GLOBAL.value, 0, 0]
+				)
 				data['scores'] = await cur.fetchone()
 				if not data['scores']:
 					raise InvalidUsage(404, 'No data found')

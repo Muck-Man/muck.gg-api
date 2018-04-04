@@ -8,7 +8,7 @@ from server.rest.endpoint import Endpoint
 from server.rest.invalidusage import InvalidUsage
 from server.rest.response import Response
 
-from server.utils import IdTypes, Permissions, PerspectiveAttributes
+from server.utils import ContextTypes, Permissions, PerspectiveAttributes
 
 class RestEndpoint(Endpoint):
 	def __init__(self, server):
@@ -30,22 +30,17 @@ class RestEndpoint(Endpoint):
 		vscores = list(scores.values())
 
 		values = [
-			[started, 0, 0, 0, 0],
-			[started, 0, guild_id, 0, 0] if guild_id else None,
-			[started, 0, 0, channel_id, 0],
-			[started, 0, 0, 0, user_id],
-			[started, 0, guild_id, 0, user_id] if guild_id else None,
-			[started, 0, 0, channel_id, user_id],
-			[started, timestamp, 0, 0, 0],
-			[started, timestamp, guild_id, 0, 0] if guild_id else None,
-			[started, timestamp, 0, channel_id, 0],
-			[started, timestamp, 0, 0, user_id],
-			[started, timestamp, guild_id, 0, user_id] if guild_id else None,
-			[started, timestamp, 0, channel_id, user_id]
+			[ContextTypes.GLOBAL.value, 0, 0],
+			[ContextTypes.GLOBAL.value, 0, user_id],
+			[ContextTypes.GUILDS.value, guild_id, 0] if guild_id else None,
+			[ContextTypes.GUILDS.value, guild_id, user_id] if guild_id else None,
+			[ContextTypes.CHANNELS.value, channel_id, 0],
+			[ContextTypes.CHANNELS.value, channel_id, user_id]
 		]
-		values = [v + [1] + vscores for v in values if v is not None]
+		values = [v for v in values if v is not None]
+		values = [[started, 0, 1] + v + vscores for v in values] + [[started, timestamp, 1] + v + vscores for v in values]
 
-		keys = ['started', 'timestamp', 'guild_id', 'channel_id', 'user_id', 'count'] + kscores
+		keys = ['started', 'timestamp', 'count', 'context_type', 'context_id', 'user_id'] + kscores
 		statement = ' '.join([
 			'INSERT INTO  `muck_averages`',
 			'({})'.format(', '.join(['`{}`'.format(k) for k in keys])),
@@ -60,17 +55,6 @@ class RestEndpoint(Endpoint):
 			])
 		])
 
-		#store 0 0 0 0 (global since start)
-		#-------------------------------------
-		#store 0 guild_id 0 0 (guild stats from start)
-		#store 0 0 channel_id 0 (channel stats from start)
-		#store 0 0 0 user_id (user stats from start)
-		#-------------------------------------
-		#store timestamp 0 0 0 (global for 1 day)
-		#store timestamp guild_id 0 0 (specific for 1 day) (to get guild stats for the day)
-		#store timestamp 0 channel_id 0 (specific for 1 day) (to get channel stats for the day)
-		#store timestamp guild_id channel_id user_id (specific for 1 day) (to get user stats for the day (guild/channel specific or average of everything for the day since they can only talk in 100 guilds))
-
 		connection = await self.server.database.acquire()
 		try:
 			async with connection.cursor() as cur:
@@ -78,8 +62,6 @@ class RestEndpoint(Endpoint):
 					statement,
 					[x for y in values for x in y]
 				)
-		except Exception as e:
-			print(e)
 		finally:
 			self.server.database.release(connection)
 

@@ -96,8 +96,8 @@ CREATE TABLE `muck_messages` (
 CREATE TABLE `muck_averages` (
     `started` INT(10) NOT NULL,
     `timestamp` INT(10) NOT NULL,
-    `guild_id` BIGINT(20) DEFAULT 0,
-    `channel_id` BIGINT(20) DEFAULT 0,
+    `context_type` INT(1) NOT NULL,
+    `context_id` BIGINT(20) DEFAULT 0,
     `user_id` BIGINT(20) DEFAULT 0,
     `attack_on_author` DECIMAL(30, 10) NOT NULL,
     `attack_on_commenter` DECIMAL(30, 10) NOT NULL,
@@ -110,11 +110,8 @@ CREATE TABLE `muck_averages` (
     `toxicity` DECIMAL(30, 10) NOT NULL,
     `unsubstantial` DECIMAL(30, 10) NOT NULL,
     `count` BIGINT(20) NOT NULL,
-    PRIMARY KEY (`timestamp`, `guild_id`, `channel_id`, `user_id`),
-    INDEX (`timestamp`),
-    INDEX (`guild_id`),
-    INDEX (`channel_id`),
-    INDEX (`user_id`),
-    INDEX (`guild_id`, `user_id`),
-    INDEX (`channel_id`, `user_id`)
+    PRIMARY KEY (`timestamp`, `context_type`, `context_id`, `user_id`),
+    INDEX (`timestamp`, `context_type`, `context_id`),
+    INDEX (`context_type`, `context_id`),
+    INDEX (`user_id`)
 );

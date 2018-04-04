@@ -34,10 +34,10 @@ class Permissions(Enumerable):
 	def check_any(cls, permission, checks):
 		return any(cls.check(permission, check) for check in checks)
 
-class IdTypes(Enumerable):
-	GUILDS = 0
-	CHANNELS = 1
-	USERS = 2
+class ContextTypes(Enumerable):
+	GLOBAL = 0
+	GUILDS = 1
+	CHANNELS = 2
 
 class PerspectiveAttributes(Enumerable):
 	ATTACK_ON_AUTHOR    = 'attack_on_author'
