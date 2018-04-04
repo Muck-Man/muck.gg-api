@@ -1,5 +1,6 @@
 from decimal import *
 
+import datetime
 import hashlib
 import time
 
@@ -18,72 +19,65 @@ class RestEndpoint(Endpoint):
 		self.perspective = self.server.config.get('googleapi', {}).get('perspective', None)
 
 		self.attributes = {k.name: {} for k in PerspectiveAttributes}
-
-		self.idts = {
-			'GUILDS': 'guild_id',
-			'CHANNELS': 'channel_id',
-			'USERS': 'user_id'
-		}
 	
-	async def average(self, cursor, ids, scores):
-		attributes = [key.lower() for key in self.attributes.keys()]
+	async def average(self, timestamp, guild_id, channel_id, user_id, scores):
+		timestamp = datetime.date.fromtimestamp(timestamp) - datetime.timedelta(1)
+		timestamp = timestamp.strftime('%s')
 
-		for id_type in ids.keys():
-			if not ids[id_type]:
-				continue
-			id_type = IdTypes.get(id_type)
+		scores = {attribute.value: scores[attribute.value] for attribute in PerspectiveAttributes}
+		kscores = list(scores.keys())
+		vscores = list(scores.values())
 
-			idt = self.idts.get(id_type.name)
+		values = [
+			[0, 0, 0, 0],
+			[0, guild_id, 0, 0] if guild_id else None,
+			[0, 0, channel_id, 0],
+			[0, 0, 0, user_id],
+			[timestamp, 0, 0, 0],
+			[timestamp, guild_id, 0, 0] if guild_id else None,
+			[timestamp, 0, channel_id, 0],
+			[timestamp, guild_id or 0, channel_id, user_id]
+		]
+		values = [v + [1] + vscores for v in values if v is not None]
 
-			unique = True
-			await cursor.execute('SELECT COUNT(*) AS "count" FROM `muck_messages` WHERE `{idt}` = %s AND `hash` = %s'.format(idt=idt), (ids[id_type.name], scores['hash']))
-			messages = await cursor.fetchone()
-			if messages['count'] > 1:
-				unique = False
-			
-			if await cursor.execute('SELECT * FROM `muck_averages` WHERE `id_type` = %s AND `id` = %s', (id_type.value, ids[id_type.name])):
-				update = {
-					'set': [],
-					'values': []
-				}
-				update['set'] += [
-					'{}'.format(', '.join(['`{k}` = ROUND(((`{k}` * `count`) + %s) / (`count` + 1), 7)'.format(k=k) for k in attributes])),
-					'`count` = `count` + 1'
-				]
-				for attribute in attributes:
-					update['values'].append(scores[attribute])
+		keys = ['timestamp', 'guild_id', 'channel_id', 'user_id', 'count'] + kscores
+		statement = ' '.join([
+			'INSERT INTO  `muck_averages`',
+			'({})'.format(', '.join(['`{}`'.format(k) for k in keys])),
+			'VALUES',
+			', '.join([
+				'({})'.format(', '.join(['%s' for a in range(len(keys))])) for i in range(len(values))
+			]),
+			'ON DUPLICATE KEY UPDATE',
+			', '.join([
+				', '.join(['`{k}` = ROUND(((`{k}` * `count`) + VALUES(`{k}`)) / (`count` + VALUES(`count`)), 7)'.format(k=k) for k in kscores]),
+				'`count` = `count` + VALUES(`count`)'
+			])
+		])
 
-				if unique:
-					update['set'] += [
-						'{}'.format(', '.join(['`unique_{k}` = ROUND(((`unique_{k}` * `unique_count`) + %s) / (`unique_count` + 1), 7)'.format(k=k) for k in attributes])),
-						'`unique_count` = `unique_count` + 1'
-					]
-					for attribute in attributes:
-						update['values'].append(scores[attribute])
+		#store 0 0 0 0 (global since start)
+		#-------------------------------------
+		#store 0 guild_id 0 0 (guild stats from start)
+		#store 0 0 channel_id 0 (channel stats from start)
+		#store 0 0 0 user_id (user stats from start)
+		#-------------------------------------
+		#store timestamp 0 0 0 (global for 1 day)
+		#store timestamp guild_id 0 0 (specific for 1 day) (to get guild stats for the day)
+		#store timestamp 0 channel_id 0 (specific for 1 day) (to get channel stats for the day)
+		#store timestamp guild_id channel_id user_id (specific for 1 day) (to get user stats for the day (guild/channel specific or average of everything for the day since they can only talk in 100 guilds))
 
-				await cursor.execute(
-					' '.join([
-						'UPDATE `muck_averages` SET',
-						', '.join(update['set']),
-						'WHERE `id_type` = %s AND `id` = %s'
-					]),
-					update['values'] + [id_type.value, ids[id_type.name]]
+		connection = await self.server.database.acquire()
+		try:
+			async with connection.cursor() as cur:
+				await cur.execute(
+					statement,
+					[x for y in values for x in y]
 				)
-			else:
-				insert = {
-					'columns': ['id_type', 'id'] + attributes + ['count'] + ['unique_{}'.format(a) for a in attributes] + ['unique_count'],
-					'values': [id_type.value, ids[id_type.name]] + [scores[a] for a in attributes] + [1] + [scores[a] if unique else 0 for a in attributes] + [1 if unique else 0]
-				}
+		except Exception as e:
+			print(e)
+		finally:
+			self.server.database.release(connection)
 
-				await cursor.execute(
-					' '.join([
-						'INSERT INTO `muck_averages`'
-						'({})'.format(', '.join(['`{}`'.format(k) for k in insert['columns']])),
-						'VALUES',
-						'({})'.format(', '.join(['%s' for k in insert['columns']]))
-					]),
-					insert['values']
-				)
 	async def post(self, request):
 		bot = await self.server.tools.authorize(
 			request.headers.get('Authorization'),
@@ -93,22 +87,37 @@ class RestEndpoint(Endpoint):
 		if not self.perspective:
 			raise InvalidUsage(500, 'Server missing perspective API key')
 		
-		data = self.validate(await request.json(), required=['message_id', 'channel_id', 'user_id', 'content'])
-		data['guild_id'] = data.get('guild_id', None)
-		data['edited_timestamp'] = data.get('edited_timestamp', None) or 0
+		store = bool(request.query.get('store', None) == 'true')
+		store = True
+
+		data = self.validate(await request.json(), required=['content'])
+		if store:
+			#check if bot is owner or something
+			data = self.validate(data, required=['message_id', 'channel_id', 'user_id', 'timestamp'])
+			data['guild_id'] = data.get('guild_id', None)
+			if data['guild_id'] == 'null':
+				data['guild_id'] = None
+			data['edited'] = bool(data.get('edited', False))
+		
+		if not data['content']:
+			#if they send in a blank content lol
+			raise InvalidUsage(400)
+
+		print(store, data)
 
 		mhash = hashlib.sha256(data['content'].encode()).hexdigest()
 
 		connection = await self.server.database.acquire()
 		try:
 			async with connection.cursor() as cur:
-				if await cur.execute('SELECT * FROM `muck_messages` WHERE `message_id` = %s AND `edited_timestamp` = %s', (data['message_id'], data['edited_timestamp'])):
-					raise InvalidUsage(400, 'Message already inside database.')
+				if store:
+					if await cur.execute('SELECT * FROM `muck_messages` WHERE `message_id` = %s AND `timestamp` = %s AND `edited` = %s', (data['message_id'], data['timestamp'], data['edited'])):
+						raise InvalidUsage(400, 'Message already inside database.')
 
-				if await cur.execute('SELECT * FROM `muck_cache` WHERE `hash` = %s', (mhash,)):
-					scores = await cur.fetchone()
-				else:
-					scores = {'hash': mhash}
+				await cur.execute('SELECT * FROM `muck_cache` WHERE `hash` = %s', (mhash,))
+				scores = await cur.fetchone()
+
+				if not scores or scores['analyzed'] < int(time.time() - 86400):
 					response = await self.server.httpclient.googleapi_perspective(self.perspective['token'], data['content'], self.attributes, True)
 					if response['status'] != 200:
 						if not response['json']:
@@ -117,22 +126,44 @@ class RestEndpoint(Endpoint):
 							raise InvalidUsage(response['status'], response['data']['error']['message'])
 					response = response['data']
 
+					if scores:
+						scores = {}
+					else:
+						scores = {'hash': mhash}
+
 					for key in response['attributeScores'].keys():
 						scores[key.lower()] = round(response['attributeScores'][key]['summaryScore']['value'], 7)
 					
+					scores['analyzed'] = int(time.time())
+					
 					iscores = scores.items()
+					if scores.get('hash', None):
+						await cur.execute(
+							'INSERT INTO `muck_cache` ' +
+							'({}) '.format(', '.join(['`{}`'.format(k) for k, v in iscores])) +
+							'VALUES ' +
+							'({})'.format(', '.join(['%s' for k, v in iscores])),
+							[v for k, v in iscores]
+						)
+					else:
+						await cur.execute(
+							' '.join([
+								'UPDATE `muck_cache` SET',
+								', '.join(
+									['`{}` = %s'.format(k) for k, v in iscores]
+								),
+								'WHERE `hash` = %s'
+							]),
+							[v for k, v in iscores] + [mhash]
+						)
+
+				if store:
 					await cur.execute(
-						'INSERT INTO `muck_cache` ' +
-						'({}) '.format(', '.join(['`{}`'.format(k) for k, v in iscores])) +
-						'VALUES ' +
-						'({})'.format(', '.join(['%s' for k, v in iscores])),
-						[v for k, v in iscores]
+						'INSERT INTO `muck_messages` (`message_id`, `guild_id`, `channel_id`, `user_id`, `hash`, `timestamp`, `edited`) VALUES (%s, %s, %s, %s, %s, %s, %s)',
+						(data['message_id'], data['guild_id'], data['channel_id'], data['user_id'], mhash, data['timestamp'], data['edited'])
 					)
 
-				await cur.execute(
-					'INSERT INTO `muck_messages` (`message_id`, `guild_id`, `channel_id`, `user_id`, `hash`, `edited_timestamp`, `inserted`) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-					(data['message_id'], data['guild_id'], data['channel_id'], data['user_id'], scores['hash'], data['edited_timestamp'], time.time())
-				)
+					self.server.loop.create_task(self.average(data['timestamp'], data['guild_id'], data['channel_id'], data['user_id'], scores))
 
 				#await self.average(cur, {
 				#	'GUILDS': data['guild_id'],

@@ -26,30 +26,31 @@ class RestEndpoint(Endpoint):
 			raise InvalidUsage(404)
 		
 		idt = self.id_types.get(idtype.name)
-		
-		data = {
-			'timestamp': datetime.date.today() - datetime.timedelta(1),
-			'score': {}
-		}
-		data['timestamp'] = data['timestamp'].strftime('%s')
 
+		#implement using timestamp
+
+		scores = {}
+		
 		where = [
-			'`inserted` >= %s',
+			'`timestamp` = 0',
 			'`{}` = %s'.format(idt)
 		]
-
-		values = [data['timestamp'], sid]
+		values = [sid]
 
 		if idt == 'user_id':
-			if request.query.get('channel_id', None):
-				where.append('`channel_id` = %s')
-				values.append(request.query['channel_id'])
-			
-			if request.query.get('guild_id', None):
+			guild_id = request.query.get('guild_id', None)
+			channel_id = request.query.get('channel_id', None)
+
+			if guild_id and channel_id:
+				raise InvalidUsage(400, 'Pick between guild_id and channel_id, not both')
+
+			if guild_id:
 				where.append('`guild_id` = %s')
-				values.append(request.query['guild_id'])
-		
-		print(where, values)
+				values.append(guild_id)
+
+			if channel_id:
+				where.append('`channel_id` = %s')
+				values.append(channel_id)
 
 		connection = await self.server.database.acquire()
 		try:
@@ -57,23 +58,17 @@ class RestEndpoint(Endpoint):
 				await cur.execute(
 					' '.join([
 						'SELECT',
-						'{}'.format(
-							'{}'.format(
-								', '.join(
-									['AVG(`muck_cache`.`{a}`) AS "{a}"'.format(a=attribute.value) for attribute in PerspectiveAttributes] +
-									['COUNT(*) AS "count"']
-								)
-							),
-						),
-						'FROM `muck_messages`',
-						'INNER JOIN `muck_cache` ON `muck_messages`.`hash` = `muck_cache`.`hash`',
-						'WHERE',
+						', '.join([
+							'`count`',
+							', '.join(['`{}`'.format(attribute.value) for attribute in PerspectiveAttributes])
+						]),
+						'FROM `muck_averages` WHERE',
 						' AND '.join(where)
 					]),
 					values
 				)
-				data['score'].update(await cur.fetchone())
+				scores.update(await cur.fetchone())
 		finally:
 			self.server.database.release(connection)
 		
-		return Response(200, data)
+		return Response(200, scores)

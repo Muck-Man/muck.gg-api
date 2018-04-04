@@ -1,23 +1,35 @@
 GRANT ALL PRIVILEGES ON *.* to '<user>'@'localhost' identified by '<password>';
 
 CREATE TABLE `users` (
-	`id` BIGINT(20) NOT NULL PRIMARY KEY,
-	`username` VARCHAR(32) NOT NULL,
-	`discriminator` INT(4) NOT NULL,
-	`avatar_hash` VARCHAR(34),
-	`refreshed` INT(10) NOT NULL,
-	`permissions` INT(10) NOT NULL
+    `id` BIGINT(20) NOT NULL PRIMARY KEY,
+    `username` VARCHAR(32) NOT NULL,
+    `discriminator` INT(4) NOT NULL,
+    `avatar_hash` VARCHAR(34),
+    `refreshed` INT(10) NOT NULL,
+    `permissions` INT(10) NOT NULL
 );
 
 CREATE TABLE `oauth2` (
-	`user_id` BIGINT(20) NOT NULL,
-	`scope` VARCHAR(100) NOT NULL,
-	`token_type` VARCHAR(10) NOT NULL,
-	`access_token` VARCHAR(32) NOT NULL,
-	`refresh_token` VARCHAR(32) NOT NULL,
-	`expires_in` INT(10) NOT NULL,
-	`refreshed` INT(10) NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+    `user_id` BIGINT(20) NOT NULL,
+    `scope` VARCHAR(100) NOT NULL,
+    `token_type` VARCHAR(10) NOT NULL,
+    `access_token` VARCHAR(32) NOT NULL,
+    `refresh_token` VARCHAR(32) NOT NULL,
+    `expires_in` INT(10) NOT NULL,
+    `refreshed` INT(10) NOT NULL,
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+        ON UPDATE RESTRICT
+        ON DELETE CASCADE
+);
+
+CREATE TABLE `bots` (
+    `id` BIGINT(20) NOT NULL PRIMARY KEY,
+    `user_id` BIGINT(20) NOT NULL,
+    `name` VARCHAR(32) NOT NULL,
+    `permissions` INT(10) NOT NULL,
+    `snowflake` BIGINT(20) NOT NULL,
+    `secret` VARCHAR(44) NOT NULL,
+    FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
         ON UPDATE RESTRICT
         ON DELETE CASCADE
 );
@@ -49,73 +61,59 @@ CREATE TABLE `token_states` (
 -------------------------------------------------------------------------------
 
 CREATE TABLE `muck_cache` (
-	`hash` VARCHAR(64) NOT NULL PRIMARY KEY,
-	`attack_on_author` DECIMAL(20, 10) NOT NULL,
-	`attack_on_commenter` DECIMAL(20, 10) NOT NULL,
-	`incoherent` DECIMAL(20, 10) NOT NULL,
-	`inflammatory` DECIMAL(20, 10) NOT NULL,
-	`likely_to_reject` DECIMAL(20, 10) NOT NULL,
-	`obscene` DECIMAL(20, 10) NOT NULL,
-	`severe_toxicity` DECIMAL(20, 10) NOT NULL,
-	`spam` DECIMAL(20, 10) NOT NULL,
-	`toxicity` DECIMAL(20, 10) NOT NULL,
-	`unsubstantial` DECIMAL(20, 10) NOT NULL
+    `hash` VARCHAR(64) NOT NULL PRIMARY KEY,
+    `attack_on_author` DECIMAL(20, 10) NOT NULL,
+    `attack_on_commenter` DECIMAL(20, 10) NOT NULL,
+    `incoherent` DECIMAL(20, 10) NOT NULL,
+    `inflammatory` DECIMAL(20, 10) NOT NULL,
+    `likely_to_reject` DECIMAL(20, 10) NOT NULL,
+    `obscene` DECIMAL(20, 10) NOT NULL,
+    `severe_toxicity` DECIMAL(20, 10) NOT NULL,
+    `spam` DECIMAL(20, 10) NOT NULL,
+    `toxicity` DECIMAL(20, 10) NOT NULL,
+    `unsubstantial` DECIMAL(20, 10) NOT NULL,
+    `analyzed` INT(10) NOT NULL
 );
 
 CREATE TABLE `muck_messages` (
-	`message_id` BIGINT(20) NOT NULL,
-	`guild_id` BIGINT(20),
-	`channel_id` BIGINT(20) NOT NULL,
-	`user_id` BIGINT(20) NOT NULL,
-	`hash` VARCHAR(64) NOT NULL,
-	`edited_timestamp` INT(10) NOT NULL,
-	`inserted` INT(10) NOT NULL,
-	FOREIGN KEY (`hash`) REFERENCES `muck_cache` (`hash`)
+    `message_id` BIGINT(20) NOT NULL,
+    `guild_id` BIGINT(20),
+    `channel_id` BIGINT(20) NOT NULL,
+    `user_id` BIGINT(20) NOT NULL,
+    `hash` VARCHAR(64) NOT NULL,
+    `timestamp` INT(10) NOT NULL,
+    `edited` TINYINT(1) NOT NULL,
+    FOREIGN KEY (`hash`) REFERENCES `muck_cache` (`hash`)
         ON UPDATE RESTRICT
         ON DELETE CASCADE,
-	PRIMARY KEY(`message_id`, `edited_timestamp`),
-	INDEX(`guild_id`),
-	INDEX(`channel_id`),
-	INDEX(`user_id`),
-	INDEX(`hash`)
+    PRIMARY KEY(`message_id`, `timestamp`, `edited`),
+    INDEX(`guild_id`),
+    INDEX(`channel_id`),
+    INDEX(`user_id`),
+    INDEX(`hash`)
 );
 
------
 CREATE TABLE `muck_averages` (
-	`id_type` INT(10) NOT NULL,
-	`id` BIGINT(20) NOT NULL,
-	`attack_on_author` DECIMAL(20, 10) NOT NULL,
-	`attack_on_commenter` DECIMAL(20, 10) NOT NULL,
-	`incoherent` DECIMAL(20, 10) NOT NULL,
-	`inflammatory` DECIMAL(20, 10) NOT NULL,
-	`likely_to_reject` DECIMAL(20, 10) NOT NULL,
-	`obscene` DECIMAL(20, 10) NOT NULL,
-	`severe_toxicity` DECIMAL(20, 10) NOT NULL,
-	`spam` DECIMAL(20, 10) NOT NULL,
-	`toxicity` DECIMAL(20, 10) NOT NULL,
-	`unsubstantial` DECIMAL(20, 10) NOT NULL,
-	`count` BIGINT(20) NOT NULL,
-	`unique_attack_on_author` DECIMAL(20, 10) NOT NULL,
-	`unique_attack_on_commenter` DECIMAL(20, 10) NOT NULL,
-	`unique_incoherent` DECIMAL(20, 10) NOT NULL,
-	`unique_inflammatory` DECIMAL(20, 10) NOT NULL,
-	`unique_likely_to_reject` DECIMAL(20, 10) NOT NULL,
-	`unique_obscene` DECIMAL(20, 10) NOT NULL,
-	`unique_severe_toxicity` DECIMAL(20, 10) NOT NULL,
-	`unique_spam` DECIMAL(20, 10) NOT NULL,
-	`unique_toxicity` DECIMAL(20, 10) NOT NULL,
-	`unique_unsubstantial` DECIMAL(20, 10) NOT NULL,
-	`unique_count` BIGINT(20) NOT NULL,
-	PRIMARY KEY (`id_type`, `id`)
-);
------
-
--------------------------------------------------------------------------------
-
-CREATE TABLE `bots` (
-    `id` BIGINT(20) NOT NULL PRIMARY KEY,
-    `name` VARCHAR(32) NOT NULL,
-    `permissions` INT(10) NOT NULL,
-    `snowflake` BIGINT(20) NOT NULL,
-    `secret` VARCHAR(44) NOT NULL
+    `timestamp` INT(10) NOT NULL,
+    `guild_id` BIGINT(20) DEFAULT 0,
+    `channel_id` BIGINT(20) DEFAULT 0,
+    `user_id` BIGINT(20) DEFAULT 0,
+    `attack_on_author` DECIMAL(20, 10) NOT NULL,
+    `attack_on_commenter` DECIMAL(20, 10) NOT NULL,
+    `incoherent` DECIMAL(20, 10) NOT NULL,
+    `inflammatory` DECIMAL(20, 10) NOT NULL,
+    `likely_to_reject` DECIMAL(20, 10) NOT NULL,
+    `obscene` DECIMAL(20, 10) NOT NULL,
+    `severe_toxicity` DECIMAL(20, 10) NOT NULL,
+    `spam` DECIMAL(20, 10) NOT NULL,
+    `toxicity` DECIMAL(20, 10) NOT NULL,
+    `unsubstantial` DECIMAL(20, 10) NOT NULL,
+    `count` BIGINT(20) NOT NULL,
+    PRIMARY KEY (`timestamp`, `guild_id`, `channel_id`, `user_id`),
+    INDEX (`timestamp`),
+    INDEX (`guild_id`),
+    INDEX (`channel_id`),
+    INDEX (`user_id`),
+    INDEX (`guild_id`, `user_id`),
+    INDEX (`channel_id`, `user_id`)
 );
