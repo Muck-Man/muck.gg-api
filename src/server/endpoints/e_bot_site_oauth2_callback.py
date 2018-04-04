@@ -121,13 +121,10 @@ class RestEndpoint(Endpoint):
 		if not self.oauth2.get('token_uri'):
 			raise InvalidUsage(500, 'Site not configured properly')
 
-		if site == 'token_uri':
-			raise InvalidUsage(404)
-
 		session = await self.server.router.get_session(request)
 		method = getattr(self, 'site_{}'.format(site))
 		if not method:
-			raise InvalidUsage(404, 'oauth2 type not supported')
+			raise InvalidUsage(404)
 
 		user_id, state_id, connection = await method(request, session)
 		state_token = self.server.token.generate(state_id)

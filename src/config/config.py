@@ -6,9 +6,13 @@ cfg = {
 	'oauth2': {
 		'token_uri': 'https://muck.gg/auth/callback',
 		'discord': {
-			'id': '409288585766764544',
+			'id': '',
 			'secret': '',
-			'redirect_uri': 'https://muck.gg/api/bot/discord/oauth2/callback'
+			'redirect_uri': 'https://muck.gg/api/bot/discord/oauth2/callback',
+			'invite': 'https://discord.gg/kcPjgg3'
+		},
+		'github': {
+			'url': 'https://github.com/Muck-Man'
 		}
 	},
 	'googleapi': {
@@ -20,7 +24,7 @@ cfg = {
 		'host': '127.0.0.1',
 		'user': '',
 		'password': '',
-		'db': '',
+		'db': 'muck',
 		'charset': 'utf8mb4'
 	}
 }

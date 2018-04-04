@@ -92,8 +92,8 @@ class RestEndpoint(Endpoint):
 		if not self.perspective:
 			raise InvalidUsage(500, 'Server missing perspective API key')
 		
-		store = bool(request.query.get('store', None) == 'true')
-		store = True
+		#store = bool(request.query.get('store', None) == 'true')
+		store = not bool(request.query.get('store', None) == 'false')
 
 		data = self.validate(await request.json(), required=['content'])
 		if store:
@@ -111,6 +111,7 @@ class RestEndpoint(Endpoint):
 
 		mhash = hashlib.sha256(data['content'].encode()).hexdigest()
 
+		response = {}
 		connection = await self.server.database.acquire()
 		try:
 			async with connection.cursor() as cur:
@@ -160,6 +161,10 @@ class RestEndpoint(Endpoint):
 							]),
 							[v for k, v in iscores] + [mhash]
 						)
+				
+				response['hash'] = scores.pop('hash')
+				response['analyzed'] = scores.pop('analyzed')
+				response['scores'] = scores
 
 				if store:
 					await cur.execute(
@@ -168,13 +173,7 @@ class RestEndpoint(Endpoint):
 					)
 
 					self.server.loop.create_task(self.average(data['timestamp'], data['guild_id'], data['channel_id'], data['user_id'], scores))
-
-				#await self.average(cur, {
-				#	'GUILDS': data['guild_id'],
-				#	'CHANNELS': data['channel_id'],
-				#	'USERS': data['user_id']
-				#}, scores)
 		finally:
 			self.server.database.release(connection)
 		
-		return Response(200, scores)
+		return Response(200, response)

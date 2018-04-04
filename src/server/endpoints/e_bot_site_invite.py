@@ -14,8 +14,10 @@ class RestEndpoint(Endpoint):
 		if not self.oauth2.get('discord'):
 			raise InvalidUsage(500, 'Server missing Discord Oauth2 Config')
 		
-		oauth2 = self.oauth2.get('discord')
-		return Redirect(302, 'https://discordapp.com/oauth2/authorize', params={'scope': 'bot', 'client_id': oauth2.get('id')})
+		return Redirect(302, 'https://discordapp.com/oauth2/authorize', params={
+			'scope': 'bot',
+			'client_id': self.oauth2.get('discord').get('id')
+		})
 	
 	async def get(self, request, site):
 		method = getattr(self, 'site_{}'.format(site))
