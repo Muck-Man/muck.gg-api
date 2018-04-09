@@ -115,3 +115,21 @@ CREATE TABLE `muck_averages` (
     INDEX (`context_type`, `context_id`),
     INDEX (`user_id`)
 );
+
+-------------------------------------------------------------------------------
+
+CREATE TABLE `thresholds` (
+	`id` BIGINT(20) NOT NULL,
+	`id_type` INT(1) NOT NULL,
+	`attack_on_author` DECIMAL(3, 2) DEFAULT 0,
+    `attack_on_commenter` DECIMAL(3, 2) DEFAULT 0,
+    `incoherent` DECIMAL(3, 2) DEFAULT 0,
+    `inflammatory` DECIMAL(3, 2) DEFAULT 0,
+    `likely_to_reject` DECIMAL(3, 2) DEFAULT 0,
+    `obscene` DECIMAL(3, 2) DEFAULT 0,
+    `severe_toxicity` DECIMAL(3, 2) DEFAULT 0,
+    `spam` DECIMAL(3, 2) DEFAULT 0,
+    `toxicity` DECIMAL(3, 2) DEFAULT 0,
+    `unsubstantial` DECIMAL(3, 2) DEFAULT 0,
+	PRIMARY KEY (`id`, `id_type`)
+);

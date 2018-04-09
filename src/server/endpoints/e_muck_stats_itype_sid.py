@@ -12,7 +12,7 @@ class RestEndpoint(Endpoint):
 		self.server = server
 		self.path = '/muck/stats/{itype}/{sid}'
 
-		self.types = {'id': 'snowflake'}
+		self.types = {'sid': 'snowflake'}
 
 		self.allowed_types = ['users', 'guilds', 'channels']
 	
@@ -40,8 +40,6 @@ class RestEndpoint(Endpoint):
 			where.append('`user_id` = %s')
 			values.append(sid)
 
-			#check to see channel_id/guild_id, if neither, use global
-
 			context_id = request.query.get('context_id', None)
 			context_type = request.query.get('context_type', None)
 
@@ -52,7 +50,7 @@ class RestEndpoint(Endpoint):
 				else:
 					raise InvalidUsage(400, 'Context id and type cannot both be empty when one is passed in.')
 			else:
-				context_type = ContextTypes.get(context_type)
+				context_type = ContextTypes.get(context_type.upper())
 				if not context_type:
 					raise InvalidUsage(400, 'Invalid Context Type')
 			

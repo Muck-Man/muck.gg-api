@@ -39,6 +39,10 @@ class ContextTypes(Enumerable):
 	GUILDS = 1
 	CHANNELS = 2
 
+class ThresholdIdTypes(Enumerable):
+	GUILD = 0
+	CHANNEL = 1
+
 class PerspectiveAttributes(Enumerable):
 	ATTACK_ON_AUTHOR    = 'attack_on_author'
 	ATTACK_ON_COMMENTER = 'attack_on_commenter'

@@ -41,7 +41,7 @@ class Tools:
 					await cur.execute('UPDATE `token_sessions` SET `last_used` = %s WHERE `id` = %s', (time.time(), session['id']))
 					response.update(user)
 				elif token['type'] == 'bot':
-					if bots is None or not bots:
+					if bots is not None and not bots:
 						raise InvalidUsage(401, 'Bots cannot use this endpoint.')
 
 					await cur.execute('SELECT * FROM `bots` WHERE `id` = %s', (token['bot_id'],))
